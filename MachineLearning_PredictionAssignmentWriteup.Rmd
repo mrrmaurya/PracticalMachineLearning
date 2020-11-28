@@ -1,0 +1,122 @@
+---
+title: "Machine Learning"
+author: "Rajesh Maurya"
+date: "27/11/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+
+In this project, my goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants to predict the manner in which they did the exercise.
+
+This report describes how a model was built, how cross validation was used, what the expected out of sample error might be, and the rationale behind the choices made. The prediction model will also be used to predict 20 different test cases.
+
+## Set-up
+
+The following packages are required to reproduce results.
+
+```{r}
+library(caret); library(randomForest); library(rpart); library(rpart.plot)
+
+```
+
+
+# Data Collection
+Source: [http://groupware.les.inf.puc-rio.br/har](http://groupware.les.inf.puc-rio.br/har)
+
+The training data for this project are available here:
+[https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv)
+
+The test data are available here:
+[https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv)
+
+## Loading the data
+Load the files, create 70/30 data partition and check for NAs. Missing data is mapped to NA strings.
+
+```{r}
+# Read CSVs (after download, of course) while dealing with NAs
+training_data <- read.csv("./pml-training.csv", na.strings = c("NA","","#DIV/0!"))
+testing_data <- read.csv("./pml-testing.csv", na.strings = c("NA","","#DIV/0!"))
+str(training_data)
+```
+
+## Clean-up data
+NAs don't help us with predction. So let's go ahead and keep columns without missing values.
+
+```{r}
+training_data <- training_data[, colSums(is.na(training_data)) == 0]
+testing_data <- testing_data[, colSums(is.na(testing_data)) == 0]
+```
+
+
+## Inspet
+We want to reduce noise and irrelevant variables. Let's look at the column names and use our judgement about what to keep and what to ignore.
+
+```{r}
+names(training_data) # the first 7 columns won' be needed
+training_data <- training_data[ , -c(1:7)]
+testing_data  <- testing_data[ , -c(1:7)]
+```
+
+Preview the restuls, using our judgement about what might be useful. And check to see if there are missing data
+
+
+```{r}
+summary(training_data) # looks like all variables have useful summaries
+table(is.na(training_data)) # We don't want to see any TRUE's here
+```
+
+## Partition the data
+Partitioning will allow us to cross-validate. The data will be partitioned into 70% Training and 30% Testing bootstrap samples.
+
+```{r}
+bs_sample <- createDataPartition( y = training_data$classe, p = 0.7, list = FALSE)
+bs_training <- training_data[  bs_sample, ] # include bootstrap sample
+bs_testing  <- training_data[ -bs_sample, ] # exclude bootstrap sample
+# Spot-check
+head(bs_training)
+barplot(table(training_data$classe), main = "Distribution of Training Boostrap Classes (5 Levels)")
+```
+
+## Model 1 - Decision Tree
+The supervised learning decision tree algorithm was used to classify and predict.
+
+```{r}
+# Recursive Partitioing and Regression Tree
+reg_tree <- rpart( classe ~ ., data = bs_training, method = "class" )
+# Model Predictions
+reg_tree_predict <- predict( reg_tree, bs_testing, type = "class")
+# Visualize
+rpart.plot(reg_tree, main = "Plot of the rpart model (tree)")
+
+## Model 2 - Random Forest
+For classification (again) and regression.
+
+```{r}
+rando_forest <- randomForest(classe ~  ., data = bs_training, method = "class")
+rando_forest_predict <- predict( rando_forest, bs_testing, type = "class")
+```
+
+## Calibraion and Analysis
+Confision Matrix comparision for comparing the output of a models.
+
+```{r}
+# Regression Tree Matrix
+reg_tree_cm <- confusionMatrix(reg_tree_predict, bs_testing$classe)
+reg_tree_accuracy <- reg_tree_cm$overall['Accuracy']
+# Random Forest Matrix0
+rando_forest_cm <- confusionMatrix(rando_forest_predict, bs_testing$classe)
+rando_forest_accuracy <- rando_forest_cm$overall['Accuracy']
+print(paste0("Regression Tree Accuracy: ", reg_tree_accuracy))
+print(paste0("Random Forest Accuracy: ", rando_forest_accuracy))
+```
+
+# Conclusion
+
+The Random Forest algorithm had an accuracy of about 99% whereas the Regression Tree's accuracy was about 75%. The Random Forest algorithm outperformed Random Forest by about 25%. 
